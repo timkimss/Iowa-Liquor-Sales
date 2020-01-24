@@ -1,0 +1,740 @@
+---
+title: "Iowa Liquor Sales Data Cleaning"
+author: "Timothy Kim, Jun Seok Choi, Adam Solar"
+date: "11/26/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(readr)
+library(stringr)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(dplyr)
+library(jsonlite)
+library(tidyr)
+library(curl)
+library(leaps)
+library(rms)
+
+
+```
+
+```{r}
+#1. Create a dataset of all the Liquor Stores in Iowa from the initial liquor stores data.
+ILS <- read.csv("2018_Iowa_Liquor_Sales (3).csv")
+
+storeNumbers <- c()
+addresses <- c()
+cities <- c()
+states <- c()
+zipCodes <- c() 
+storelocation = c()
+counter <- 1
+index <- 1
+
+while (counter <= nrow(ILS)) {
+  
+  if (!(ILS$Store.Number[counter] %in% storeNumbers)) {
+    storeNumbers[index] <- ILS$Store.Number[counter]
+    addresses[index] <- as.character(ILS$Address[counter])
+    cities[index] <- as.character(ILS$City[counter])
+    states[index] <- "IA"
+    zipCodes[index] <- as.character(ILS$Zip.Code[counter])
+    storelocation[index] = as.character(ILS$Store.Location[counter])
+    index <- index + 1
+  }
+  counter <- counter + 1
+  
+}
+
+
+stores <- data.frame(storeNumbers, addresses,cities, states,zipCodes, storelocation)
+
+
+stores$storelocation <- substring(stores$storelocation, 8, nchar(as.character(stores$storelocation)) - 1)
+#sample2$`Store Location` <- parse_number(sample2$`Store Location`)
+
+IowaStores <- separate(data = stores, col = storelocation, into = c("Longitude", "Latitude"), sep = " ")
+```
+
+
+```{r}
+#Read in the requisite address data. This data required the manual aquisition of coordinate data
+IowaStoresADD = filter(IowaStores, is.na(Latitude) == TRUE)
+IowaStoresLL = filter(IowaStores, is.na(Longitude) == FALSE)
+```
+
+```{r}
+
+
+#Replace the file destination below to your own file destination. This calculates the FIPS of those stores without coordinates given
+
+totrow = nrow(IowaStoresADD)
+temp = rep(0, totrow)
+IowaStoresADD2 = mutate(IowaStoresADD, FIPS = temp)
+
+
+
+
+for (i in 1:nrow(IowaStoresADD2)){
+  latstr = as.character(IowaStoresADD2$Latitude[i])
+  longstr = as.character(IowaStoresADD2$Longitude[i])
+  url = paste("https://geo.fcc.gov/api/census/block/find?latitude=",latstr,"&longitude=",longstr,"&format=json",sep = "")
+  datajson = fromJSON(url)
+  IowaStoresADD2$FIPS[i] = datajson$Block$FIPS
+}
+
+```
+
+```{r}
+
+
+#Replace the file destination below to your own file destination. This calculates the FIPS for those stores with coordinates given
+
+totrow = nrow(IowaStoresLL)
+temp = rep(0, totrow)
+IowaStoresLL2 = mutate(IowaStoresLL, FIPS = temp)
+
+
+
+
+for (i in 1:nrow(IowaStoresLL2)){
+  latstr = as.character(IowaStoresLL2$Latitude[i])
+  longstr = as.character(IowaStoresLL2$Longitude[i])
+  url = paste("https://geo.fcc.gov/api/census/block/find?latitude=",latstr,"&longitude=",longstr,"&format=json",sep = "")
+  datajson = fromJSON(url)
+  IowaStoresLL2$FIPS[i] = datajson$Block$FIPS
+}
+
+
+#Remove unnecessary index variables 
+IowaStoresADD2 = select(IowaStoresADD2, -X)
+IowaStoresLL2 = select(IowaStoresLL2, -X)
+
+#Merge the two
+IowaStores = rbind(IowaStoresADD2, IowaStoresLL2)
+
+
+
+#Get Census Tract GEOID from FIPS
+GEOID = substr(IowaStores$FIPS, 1, 11)
+
+#Create final dataset for Iowa Liquor Stores
+IowaStores = mutate(IowaStores, GEOID)
+```
+
+```{r}
+#3. Now, organize the census tract data
+
+#Import requisite Iowa Census Tract data, and remove the first row (which is index data)
+PerCapInc = read.csv("ACS_17_PerCapitaIncome.csv")
+PerCapInc = slice(PerCapInc, -1)
+Employ = read.csv("ACS_17_Employment.csv")
+Employ = slice(Employ, -1)
+TotalPop = read.csv("ACS_17_TotalPopulation.csv")
+TotalPop = slice(TotalPop, -1)
+UrbRur = read.csv("DEC_10_UrbanRural.csv")
+UrbRur = slice(UrbRur, -1)
+Dem = read.csv("ACS_17_Demographics.csv")
+Dem = slice(Dem, -1)
+Age = read.csv("ACS_17_Age.csv")
+Age = slice(Age, -1)
+Education = read.csv("ACS_17_Education.csv")
+Education = slice(Education, -1)
+Poverty = read.csv("ACS_17_Poverty.csv")
+Poverty = slice(Poverty, -1)
+
+
+#Extract necessary data
+
+#General Information
+Census_Tract_GEOID = TotalPop$GEO.id2
+
+
+Census_Tract = TotalPop$GEO.display.label  
+Census_Tract = as.character(Census_Tract)
+
+
+#Population Information
+Total_Population = TotalPop$HD01_VD01
+
+
+
+#Urban - Rural Information
+Urban_Population = UrbRur$D002
+
+Rural_Population = UrbRur$D005
+
+
+#Per Capita Income Information
+Per_Capita_Income = PerCapInc$HD01_VD01
+
+
+#Employment Information
+LFPR = Employ$HC02_EST_VC01
+
+Unemployment_Rate = Employ$HC04_EST_VC01
+
+#Demographic Information
+Sex_Ratio = Dem$HC01_VC06
+
+#Age Information
+Median_Age = Age$HC01_EST_VC37
+
+#Poverty Information
+Impoverished_Population = Poverty$HC03_VC161
+
+#Education Information
+Percent_High_School_Graduates = Education$HC02_EST_VC11
+
+Percent_College_Graduates = Education$HC02_EST_VC14
+
+IowaCensusTracts = data.frame(Census_Tract, Census_Tract_GEOID, Total_Population, Urban_Population, Rural_Population, Per_Capita_Income, LFPR, Unemployment_Rate, Sex_Ratio, Median_Age, Impoverished_Population, Percent_High_School_Graduates, Percent_College_Graduates)
+
+```
+
+```{r}
+#4. Append Census Tract Information to each store using the GEOID of each Store
+
+# replace the the locations of the datasets below
+
+IowaStores <- read_csv("IowaStores.csv")
+
+IowaCensusTracts <- read_csv("IowaCensusTracts.csv")
+
+
+totrow = nrow(IowaStores)
+
+temp = rep(0, totrow)
+
+
+IowaStores2 = mutate(IowaStores, Total_Population = temp)
+IowaStores2 = mutate(IowaStores2, Urban_Population = temp)
+IowaStores2 = mutate(IowaStores2, Rural_Population = temp)
+IowaStores2 = mutate(IowaStores2, Per_Capita_Income = temp)
+IowaStores2 = mutate(IowaStores2, LFPR = temp)
+IowaStores2 = mutate(IowaStores2, Unemployment_Rate = temp)
+IowaStores2 = mutate(IowaStores2, Sex_Ratio = temp)
+IowaStores2 = mutate(IowaStores2, Median_Age = temp)
+IowaStores2 = mutate(IowaStores2, Impoverished_Population = temp)
+IowaStores2 = mutate(IowaStores2, Percent_High_School_Graduates = temp)
+IowaStores2 = mutate(IowaStores2, Percent_College_Graduates = temp)
+
+
+
+
+
+for (i in 1:nrow(IowaStores2)){
+  geoid = IowaStores2$GEOID[i]
+  for (j in 1:nrow(IowaCensusTracts)){
+    if (geoid == IowaCensusTracts$Census_Tract_GEOID[j]){
+      IowaStores2$Total_Population[i] = IowaCensusTracts$Total_Population[j]
+      IowaStores2$Urban_Population[i] = IowaCensusTracts$Urban_Population[j]
+      IowaStores2$Rural_Population[i] = IowaCensusTracts$Rural_Population[j]
+      IowaStores2$Per_Capita_Income[i] = IowaCensusTracts$Per_Capita_Income[j]
+      IowaStores2$LFPR[i] = IowaCensusTracts$LFPR[j]
+      IowaStores2$Unemployment_Rate[i] = IowaCensusTracts$Unemployment_Rate[j]
+      IowaStores2$Sex_Ratio[i] = IowaCensusTracts$Sex_Ratio[j]
+      IowaStores2$Median_Age[i] = IowaCensusTracts$Median_Age[j]
+      IowaStores2$Impoverished_Population[i] = IowaCensusTracts$Impoverished_Population[j]
+      IowaStores2$Percent_High_School_Graduates[i] = IowaCensusTracts$Percent_High_School_Graduates[j]
+      IowaStores2$Percent_College_Graduates[i] = IowaCensusTracts$Percent_College_Graduates[j]
+    }
+  }
+}
+
+```
+
+```{r}
+#Determine the amount of competition each store has.
+stores = IowaStores2
+
+stores_distances <- c()
+competition1km <- c()
+competition5km <- c()
+
+
+for(i in 1:nrow(stores)) {
+  lat1rad <- as.numeric(stores$Latitude[i])*pi/180
+  long1rad <- as.numeric(stores$Longitude[i])*pi/180
+  
+  for(j in 1:nrow(stores)) {
+    lat2rad <- as.numeric(stores$Latitude[j])*pi/180
+    long2rad <- as.numeric(stores$Longitude[j])*pi/180
+    
+    latdiff <- lat2rad - lat1rad
+    longdiff <- long2rad - long1rad
+    
+    a <- (sin(latdiff/2))^2 + cos(lat1rad) * cos(lat2rad) * (sin(longdiff/2))^2
+    c <- 2*atan2(sqrt(a), sqrt(1-a))
+    d <- R * c
+    stores_distances[j-1] <- d
+  }
+  
+  competition1km[i] <- sum(stores_distances <= 1) - 1
+   competition5km[i] <- sum(stores_distances <= 5) - 1 
+} 
+
+stores2 <- cbind(stores, competition1km, competition5km)
+```
+
+We need to attach all the requisite college data here.
+```{r}
+#5. Now determine the nearest college, and amend that information onto the stores data.
+
+R <- 6371
+
+college_distances <- rep(NA, nrow(colleges))
+
+#Total Enrolled
+AB <- rep(NA, nrow(stores))
+
+#College name
+B <- rep(NA, nrow(stores))
+
+distance2 <- rep(NA, nrow(stores))
+
+# Average net price-students awarded grant or scholarship aid
+C <- rep(NA, nrow(stores))
+
+# Average amount of federal  state  local or institutional grant aid awarded
+D <- rep(NA, nrow(stores))
+
+E <- rep(NA, nrow(stores))
+
+F <- rep(NA, nrow(stores))
+
+G <- rep(NA, nrow(stores))
+
+H <- rep(NA, nrow(stores))
+
+I <- rep(NA, nrow(stores))
+
+J <- rep(NA, nrow(stores))
+
+K <- rep(NA, nrow(stores))
+
+L <- rep(NA, nrow(stores))
+
+M <- rep(NA, nrow(stores))
+
+N <- rep(NA, nrow(stores))
+
+O <- rep(NA, nrow(stores))
+
+P <- rep(NA, nrow(stores))
+
+Q <- rep(NA, nrow(stores))
+
+R1 <- rep(NA, nrow(stores))
+
+S <- rep(NA, nrow(stores))
+
+T <- rep(NA, nrow(stores))
+
+U <- rep(NA, nrow(stores))
+
+V <- rep(NA, nrow(stores))
+
+W <- rep(NA, nrow(stores))
+
+X <- rep(NA, nrow(stores))
+
+Y <- rep(NA, nrow(stores))
+
+Z <- rep(NA, nrow(stores))
+
+AA <- rep(NA, nrow(stores))
+
+AC <- rep(NA, nrow(stores))
+
+AD <- rep(NA, nrow(stores))
+
+AE <- rep(NA, nrow(stores))
+
+AF <- rep(NA, nrow(stores))
+
+AG <- rep(NA, nrow(stores))
+
+AH <- rep(NA, nrow(stores))
+
+AI <- rep(NA, nrow(stores))
+
+AJ <- rep(NA, nrow(stores))
+
+
+
+for(i in 1:nrow(stores)) {
+  
+  
+  if (is.na(stores$Latitude[i])) {}
+  
+  
+  else {
+      
+    lat1rad <- as.numeric(stores$Latitude[i])*pi/180
+    long1rad <- as.numeric(stores$Longitude[i])*pi/180
+  
+  
+  
+    for (j in 1:nrow(colleges)) {
+      
+      lat2rad <- as.numeric(colleges$Latitude[j])*pi/180
+      long2rad <- as.numeric(colleges$Longitude[j])*pi/180
+    
+      latdiff <- lat2rad - lat1rad
+      longdiff <- long2rad - long1rad
+    
+      a <- (sin(latdiff/2))^2 + cos(lat1rad) * cos(lat2rad) * (sin(longdiff/2))^2
+      c <- 2*atan2(sqrt(a), sqrt(1-a))
+      d <- R * c
+      college_distances[j] <- d
+    }
+  
+    index <- match(min(college_distances), college_distances)
+    AB[i] <- colleges$`Enrolled Total`[index]
+    B[i] <- colleges$`Institution Name`[index]
+    C[i] <- colleges$`Average net price-students awarded grant or scholarship aid  2017-18 (SFA1718)`[index]
+    D[i] <- colleges$`Average amount of federal  state  local or institutional grant aid awarded (SFA1718)`[index]
+    E[i] <- colleges$`Institutional category (HD2018)`[index]
+    F[i] <- colleges$`Control of institution (HD2018)`[index]
+    G[i] <- colleges$`Level of institution (HD2018)`[index]
+    H[i] <- colleges$`Institution size category (HD2018)`[index]
+    J[i] <- colleges$`City location of institution (HD2018)`[index]
+    O[i] <- colleges$`Total price for in-district students living on campus  2018-19 (DRVIC2018)`[index]
+    P[i] <- colleges$`Total price for in-state students living on campus 2018-19 (DRVIC2018)`[index]
+    Q[i] <- colleges$`Total price for out-of-state students living on campus 2018-19 (DRVIC2018)`[index]
+    R1[i] <- colleges$`Total price for in-district students living off campus (not with family)  2018-19 (DRVIC2018)`[index]
+    S[i] <- colleges$`Total price for in-state students living off campus (not with family)  2018-19 (DRVIC2018)`[index]
+    T[i] <- colleges$`Total price for out-of-state students living off campus (not with family)  2018-19 (DRVIC2018)`[index]
+    U[i] <- colleges$`Total price for in-district students living off campus (with family)  2018-19 (DRVIC2018)`[index]
+    V[i] <- colleges$`Total price for in-state students living off campus (with family)  2018-19 (DRVIC2018)`[index]
+    W[i] <- colleges$`Total price for out-of-state students living off campus (with family)  2018-19 (DRVIC2018)`[index]
+    X[i] <- colleges$`Percent admitted - total (DRVADM2018)`[index]
+    Y[i] <- colleges$`Graduation rate  total cohort (DRVGR2018)`[index]
+    Z[i] <- colleges$`Graduation rate  men (DRVGR2018)`[index]
+    AA[i] <- colleges$`Graduation rate  women (DRVGR2018)`[index]
+    AC[i] <- colleges$`Enrolled  men (ADM2018)`[index]
+    AD[i] <- colleges$`Enrolled  women (ADM2018)`[index]
+    AE[i] <- colleges$`Enrolled full time total (ADM2018)`[index]
+    AF[i] <- colleges$`Enrolled full time men (ADM2018)`[index]
+    AG[i] <- colleges$`Enrolled full time women (ADM2018)`[index]
+    AH[i] <- colleges$`Enrolled part time total (ADM2018)`[index]
+    AI[i] <- colleges$`Enrolled part time men (ADM2018)`[index]
+    AJ[i] <- colleges$`Enrolled part time women (ADM2018)`[index]
+    
+    
+    distance2[i] <- min(college_distances)
+
+  }
+  
+  stores3 <- cbind(stores2, distance2, B, C, D, E, F, G, H, J, O, P, Q, R1, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD, AE, AF, AG, AH, AI, AJ)
+
+}
+```
+
+```{r}
+Iowa_Liquor_Sales_2018 = read.csv("2018_Iowa_Liquor_Sales (3).csv")
+
+attach(Iowa_Liquor_Sales_2018)
+
+Iowa_Liquor_Sales_2018.2 = summarise(group_by(Iowa_Liquor_Sales_2018, Date, Store.Number, Store.Location, County), sum(as.integer(Sale..Dollars.)), sum(as.integer(Volume.Sold..Liters.)))
+
+names(Iowa_Liquor_Sales_2018.2) = c('Date', 'Store_Number', 'Store_Location', 'County', 'Total_Sales', 'Total_Volume_Sold')
+```
+#6. Compile Initial Weekly Sales Data
+```{r,message=FALSE}
+#replace location with location in your home directory.
+
+Weekly_Iowa_Liquor_Sales_2018 <- read.csv("~/Desktop/Weekly_Iowa_Liquor_Sales_2018.csv")
+
+Iowa_Stores_3 <- read.csv("~/Desktop/Iowa_Stores_3.csv")
+```
+
+```{r,message=FALSE}
+totrow = nrow(Weekly_Iowa_Liquor_Sales_2018)
+
+temp = rep(0, totrow)
+
+Final = mutate(Weekly_Iowa_Liquor_Sales_2018, FIPS = temp)
+Final = mutate(Final, GEOID = temp)
+Final = mutate(Final, competition = temp)
+Final = mutate(Final, distance2 = temp)
+Final = mutate(Final, B = temp)
+Final = mutate(Final, C = temp)
+Final = mutate(Final, D = temp)
+Final = mutate(Final, E = temp)
+Final = mutate(Final, F = temp)
+Final = mutate(Final, G = temp)
+Final = mutate(Final, H = temp)
+Final = mutate(Final, J = temp)
+Final = mutate(Final, O = temp)
+Final = mutate(Final, P = temp)
+Final = mutate(Final, Q = temp)
+Final = mutate(Final, R1 = temp)
+Final = mutate(Final, S = temp)
+Final = mutate(Final, T = temp)
+Final = mutate(Final, U = temp)
+Final = mutate(Final, V = temp)
+Final = mutate(Final, W = temp)
+Final = mutate(Final, X = temp)
+Final = mutate(Final, Y = temp)
+Final = mutate(Final, Z = temp)
+Final = mutate(Final, AA = temp)
+Final = mutate(Final, AB = temp)
+Final = mutate(Final, AC = temp)
+Final = mutate(Final, AD = temp)
+Final = mutate(Final, AE = temp)
+Final = mutate(Final, AF = temp)
+Final = mutate(Final, AG = temp)
+Final = mutate(Final, AH = temp)
+Final = mutate(Final, AI = temp)
+Final = mutate(Final, AJ = temp)
+Final = mutate(Final, Total_Population = temp)
+Final = mutate(Final, Urban_Population = temp)
+Final = mutate(Final, Rural_Population = temp)
+Final = mutate(Final, Per_Capita_Income = temp)
+Final = mutate(Final, LFPR = temp)
+Final = mutate(Final, Unemployment_Rate = temp)
+Final = mutate(Final, Sex_Ratio = temp)
+Final = mutate(Final, Median_Age = temp)
+Final = mutate(Final, Impoverished_Population = temp)
+Final = mutate(Final, Percent_High_School_Graduates = temp)
+Final = mutate(Final, Percent_College_Graduates = temp)
+
+
+
+
+
+for (i in 1:nrow(Final)){
+  store_number = Final$Store_Number[i]
+  for (j in 1:nrow(Iowa_Stores_3)){
+    if (store_number == Iowa_Stores_3$Store_Number[j]){
+      Final$FIPS[i] = Iowa_Stores_3$FIPS[j]
+      Final$GEOID[i] = Iowa_Stores_3$GEOID[j]
+      Final$competition[i] = Iowa_Stores_3$competition[j]
+      Final$distance2[i] = Iowa_Stores_3$distance2[j]
+      Final$B[i] = Iowa_Stores_3$B[j]
+      Final$C[i] = Iowa_Stores_3$C[j]
+      Final$D[i] = Iowa_Stores_3$D[j]
+      Final$E[i] = Iowa_Stores_3$E[j]
+      Final$F[i] = Iowa_Stores_3$F[j]
+      Final$G[i] = Iowa_Stores_3$G[j]
+      Final$H[i] = Iowa_Stores_3$H[j]
+      Final$J[i] = Iowa_Stores_3$J[j]
+      Final$O[i] = Iowa_Stores_3$O[j]
+      Final$P[i] = Iowa_Stores_3$P[j]
+      Final$Q[i] = Iowa_Stores_3$Q[j]
+      Final$R1[i] = Iowa_Stores_3$R1[j]
+      Final$S[i] = Iowa_Stores_3$S[j]
+      Final$T[i] = Iowa_Stores_3$T[j]
+      Final$U[i] = Iowa_Stores_3$U[j]
+      Final$V[i] = Iowa_Stores_3$V[j]
+      Final$W[i] = Iowa_Stores_3$W[j]
+      Final$X[i] = Iowa_Stores_3$X[j]
+      Final$Y[i] = Iowa_Stores_3$Y[j]
+      Final$Z[i] = Iowa_Stores_3$Z[j]
+      Final$AA[i] = Iowa_Stores_3$AA[j]
+      Final$AB[i] = Iowa_Stores_3$AB[j]
+      Final$AC[i] = Iowa_Stores_3$AC[j]
+      Final$AD[i] = Iowa_Stores_3$AD[j]
+      Final$AE[i] = Iowa_Stores_3$AE[j]
+      Final$AF[i] = Iowa_Stores_3$AF[j]
+      Final$AG[i] = Iowa_Stores_3$AG[j]
+      Final$AH[i] = Iowa_Stores_3$AH[j]
+      Final$AI[i] = Iowa_Stores_3$AI[j]
+      Final$AJ[i] = Iowa_Stores_3$AJ[j]
+      Final$Total_Population[i] = Iowa_Stores_3$Total_Population[j]
+      Final$Urban_Population[i] = Iowa_Stores_3$Urban_Population[j]
+      Final$Rural_Population[i] = Iowa_Stores_3$Rural_Population[j]
+      Final$Per_Capita_Income[i] = Iowa_Stores_3$Per_Capita_Income[j]
+      Final$LFPR[i] = Iowa_Stores_3$LFPR[j]
+      Final$Unemployment_Rate[i] = Iowa_Stores_3$Unemployment_Rate[j]
+      Final$Sex_Ratio[i] = Iowa_Stores_3$Sex_Ratio[j]
+      Final$Median_Age[i] = Iowa_Stores_3$Median_Age[j]
+      Final$Impoverished_Population[i] = Iowa_Stores_3$Impoverished_Population[j]
+      Final$Percent_High_School_Graduates[i] = Iowa_Stores_3$Percent_High_School_Graduates[j]
+      Final$Percent_College_Graduates[i] = Iowa_Stores_3$Percent_College_Graduates[j]
+    }
+  }
+}
+
+
+sales <- read_csv("Iowa_Liquor_Sales_Draft2.csv")
+
+```
+# 
+
+# Seeing if a date is close to what we identify as a drinking holiday (the holiday itself and the week leading up to that holiday)
+```{r}
+
+holidays <- c("1/1/2018", "1/28/2018", "1/29/2018", "1/30/2018", "1/31/2018", "2/1/2018", "2/2/2018", "2/3/2018", "2/4/2018", "2/6/2018", "2/7/2018", "2/8/2018", "2/9/2018",  "2/10/2018", "2/11/2018", "2/12/2018", "2/13/2018", "3/10/2018", "3/11/2018", "3/12/2018", "3/13/2018", "3/14/2018", "3/15/2018", "3/16/2018", "3/17/2018", "4/28/2018", "4/29/2018", "4/30/2018", "5/1/2018", "5/2/2018", "5/3/2018", "5/4/2018", "5/5/2018", "5/21/2018", "5/22/2018", "5/23/2018", "5/24/2018", "5/25/2018", "5/26/2018", "5/27/2018", "5/28/2018", "5/29/2018", "5/30/2018", "5/31/2018", "6/1/2018", "6/2/2018", "6/3/2018", "6/4/2018", "6/5/2018", "6/6/2018", "6/7/2018", "6/8/2018","6/27/2018", "6/28/2018", "6/29/2018", "6/30/2018", "7/1/2018", "7/2/2018", "7/3/2018", "7/4/2018", "8/27/2018", "8/28/2018", "8/29/2018", "8/30/2018", "8/31/2018", "9/1/2018", "9/2/2018", "9/3/2018","10/16/2018", "10/17/2018", "10/18/2018", "10/19/2018", "10/20/2018", "10/21/2018", "10/22/2018", "10/23/2018", "10/24/2018", "10/25/2018", "10/26/2018", "10/27/2018", "10/28/2018", "10/29/2018", "10/30/2018", "10/31/2018", "11/4/2018", "11/5/2018", "11/6/2018", "11/7/2018", "11/8/2018", "11/9/2018", "11/10/2018", "11/11/2018", "11/15/2018", "11/16/2018", "11/17/2018", "11/18/2018", "11/19/2018", "11/20/2018", "11/21/2018", "11/22/2018", "12/17/2018", "12/18/2018", "12/19/2018", "12/20/2018", "12/21/2018", "12/22/2018", "12/23/2018", "12/24/2018", "12/25/2018", "12/26/2018", "12/27/2018", "12/28/2018", "12/29/2018", "12/30/2018", "12/31/2018")
+
+
+
+
+
+
+drinking_holidays <- rep(NA, nrow(sales))
+
+for (i in 1:nrow(sales)){
+  
+  if (sales$Date[i] %in% holidays) {
+    drinking_holidays[i] = 1
+  }
+  else {
+    drinking_holidays[i] = 0
+  }
+  
+}
+
+sales2 <- cbind(sales, drinking_holidays)
+```
+
+```{r}
+#7. Amend more college data to the weekly liquor sales data, rearrange, and finish.
+
+IowaStores4 <- Iowa_Stores_3
+
+
+CC <- rep(NA, nrow(sales2))
+
+DD <- rep(NA, nrow(sales2))
+
+EE <- rep(NA, nrow(sales2))
+
+FF <- rep(NA, nrow(sales2))
+
+GG <- rep(NA, nrow(sales2))
+
+HH <- rep(NA, nrow(sales2))
+
+II <- rep(NA, nrow(sales2))
+
+JJ <- rep(NA, nrow(sales2))
+
+KK <- rep(NA, nrow(sales2))
+
+LL <- rep(NA, nrow(sales2))
+
+MM <- rep(NA, nrow(sales2))
+
+NN <- rep(NA, nrow(sales2))
+
+newLat <- rep(NA, nrow(sales2))
+newLon <- rep(NA, nrow(sales2))
+lessThan5kmFromCollege <- rep(0, nrow(sales2))
+lessThan10kmFromCollege <- rep(0, nrow(sales2))
+
+for (i in 1:nrow(sales2)) {
+
+  store_number = sales2$Store_Number[i]
+
+  for (j in 1:nrow(IowaStores4)){
+    
+    if (store_number == IowaStores4$Store_Number[j]) {
+       CC[i] = IowaStores4$CC[j]
+       DD[i] = IowaStores4$DD[j]
+       EE[i] = IowaStores4$EE[j]
+       FF[i] = IowaStores4$FF[j]
+       GG[i] = IowaStores4$GG[j]
+       HH[i] = IowaStores4$HH[j]
+       II[i] = IowaStores4$II[j]
+       JJ[i] = IowaStores4$JJ[j]
+       KK[i] = IowaStores4$KK[j]
+       LL[i] = IowaStores4$LL[j]
+       MM[i] = IowaStores4$MM[j]
+       NN[i] = IowaStores4$NN[j]
+       lessThan10kmFromCollege[i] = IowaStores4$lessThan10kmFromCollege[j]
+       lessThan5kmFromCollege[i] = IowaStores4$lessThan5kmFromCollege[j]
+       newLat[i] = IowaStores4$newLat[j]
+       newLon[i] = IowaStores4$newLon[j]
+       
+       break
+       
+    }
+    
+    
+    
+  }
+}
+
+sales3 <- cbind(sales2, CC, DD, EE, FF, GG, HH, II, JJ, KK, LL, MM, NN, lessThan10kmFromCollege, lessThan5kmFromCollege, newLat, newLon)
+    
+       
+
+
+
+```
+
+
+```{r}
+
+sales3$Store_Location <- substring(sales3$Store_Location, 8, nchar(sales3$Store_Location) - 1)
+sales4 <- separate(data = sales3, col = Store_Location, into = c("Longitude", "Latitude"), sep = " ")
+
+```
+
+
+```{r}
+#8 Make Sex Ratio a decimal (originally a male to female percentage ratio)
+
+sales4$CT_Sex_Ratio <-  sales4$CT_Sex_Ratio/100
+```
+
+
+
+```{r}
+#9 Delete rows of sales from stores that don't have the data of its location coordinates or addresses.
+
+FullData <- sales4
+
+invalid_stores <- c(2543, 2556, 2591, 2641, 3420, 3822, 4000, 4640, 4722, 4777, 9936)
+
+rows_to_delete <- c()
+
+for (i in 1:nrow(FullData)) {
+  
+  store_number = FullData$Store_Number[i]
+  
+  if (store_number %in% invalid_stores) {
+    FullData <- FullData[-i,]
+  }
+    
+}
+
+NewFullData <- FullData
+```
+
+
+```{r}
+
+# 10 Separates the data into two portions randomly, one containing 75% of the full data, the other containing the remaining 25%.
+
+twenty_five_percent_sample <- NewFullData %>% sample_frac(.25, replace = FALSE)
+
+x <- rbind(NewFullData, twenty_five_percent_sample)
+seventy_five_percent_sample <- x[! duplicated(x, fromLast = TRUE) & seq(nrow(x)) <= nrow(NewFullData),]
+
+NewFullData[ sample, round(0.25*length(NewFullData)) ]
+
+
+```
+
+```{r}
+NewFullData25 <- twenty_five_percent_sample
+NewFullData75 <- seventy_five_percent_sample
+```
+
+
+```{r}
+write.csv(NewFullData25, "NewFullData25.csv")
+write.csv(NewFullData75, "NewFullData75.csv")
+```

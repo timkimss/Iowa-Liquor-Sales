@@ -1,0 +1,144 @@
+---
+title: "Analysis"
+author: "Timothy Kim, Jun Seok Choi, Adam Solar"
+date: "12/2/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(leaps)
+library(mosaic)
+library(ggplot2)
+
+NewFullData <- read_csv("NewFullData.csv")
+NewFullData75 <- read_csv("NewFullData75.csv")
+NewFullData25 <- read_csv("NewFullData25.csv")
+```
+
+```{r}
+
+IA = select(NewFullData75, Total_Volume_Sold, Competition_Within_5km, Competition_Within_1km, CT_Total_Population, CT_Impoverished_Population, CT_LFPR, CT_Median_Age, CT_Per_Capita_Income, CT_Percent_College_Graduates, CT_Percent_High_School_Graduates, CT_Rural_Population, CT_Unemployment_Rate, CT_Sex_Ratio, CT_Urban_Population, Presence_Of_Drinking_Holiday)
+
+attach(IA)
+X = c(1:42022)
+```
+
+```{r}
+BS1 = regsubsets(Total_Volume_Sold~., data = IA, nvmax = 5)
+summary(BS1)
+```
+
+
+```{r}
+LM1 = lm(sqrt(IA$Total_Volume_Sold) ~ IA$Competition_Within_1km + IA$Competition_Within_5km + IA$CT_Percent_High_School_Graduates + IA$CT_Rural_Population + IA$CT_Sex_Ratio)
+summary(LM1)
+
+```
+
+```{r}
+LM2 = lm(sqrt(IA$Total_Volume_Sold) ~ IA$Competition_Within_1km + IA$Competition_Within_5km + log(IA$CT_Percent_High_School_Graduates) + sqrt(IA$CT_Rural_Population) + log(IA$CT_Sex_Ratio))
+summary(LM2)
+
+```
+
+
+```{r}
+qqnorm(LM1$residuals)
+qqline(LM1$residuals)
+plot(LM1$residuals ~ IA$Competition_Within_5km)
+plot(LM1$residuals ~ IA$Competition_Within_1km)
+plot(LM1$residuals ~ sqrt(IA$CT_Percent_High_School_Graduates))
+plot(LM1$residuals ~ log(IA$CT_Rural_Population))
+plot(LM1$residuals ~ log(log(IA$CT_Sex_Ratio)))
+plot(LM1$residuals ~ LM1$fitted.values)
+plot(LM1$residuals ~ X)
+```
+
+
+
+
+
+
+
+```{r}
+LMFull <- lm(sqrt(Total_Volume_Sold) ~ CT_Percent_High_School_Graduates + CT_Rural_Population + CT_Sex_Ratio + Competition_Within_1km + Competition_Within_5km + NC_Distance + NC_ACT_75 + NC_Percent_Admitted_Men + NC_Within_10k + NC_Within_5k + NC_Student_to_Faculty_Ratio,  data =  NewFullData75)
+
+
+summary(LMFull)
+```
+
+
+```{r}
+Reduced = lm(sqrt(Total_Volume_Sold) ~ Competition_Within_1km + Competition_Within_5km + CT_Percent_High_School_Graduates + CT_Rural_Population + CT_Sex_Ratio, data = NewFullData75)
+
+
+Full <- lm(sqrt(Total_Volume_Sold) ~ CT_Percent_High_School_Graduates + CT_Rural_Population + CT_Sex_Ratio + Competition_Within_1km + Competition_Within_5km + NC_Distance + NC_ACT_75 + NC_Percent_Admitted_Men + NC_Within_10k + NC_Within_5k + NC_Student_to_Faculty_Ratio,  data =  NewFullData75)
+
+anova(Full, Reduced)
+```
+
+```{r}
+write.csv(IA, "FinalData.csv")
+FinalData_Colleges = select(FullData, NC_Distance, NC_ACT_75, NC_Percent_Admitted_Men, NC_Within_10k, NC_Within_5k, NC_Student_to_Faculty_Ratio)
+write.csv(FinalData_Colleges, "Final_Data_Colleges.csv")
+```
+
+
+
+
+```{r}
+
+
+expectedSqrtTotalVolumeSold <- 117.754 - .282777 * NewFullData25$CT_Percent_High_School_Graduates - .00606514 * NewFullData25$CT_Rural_Population - .137582 * NewFullData25$CT_Sex_Ratio + 1.48784 * NewFullData25$Competition_Within_1km + .173776 * NewFullData25$Competition_Within_5km
+
+
+observedSqrtTotalVolumeSold <- sqrt(NewFullData25$Total_Volume_Sold)
+
+
+meanObserved <- mean(observedSqrtTotalVolumeSold)
+
+totalSumSquares <- sum((observedSqrtTotalVolumeSold - meanObserved)^2)
+
+regressionSumSquares <- sum((expectedSqrtTotalVolumeSold - observedSqrtTotalVolumeSold)^2)
+
+R_Squared <- 1 - regressionSumSquares/totalSumSquares
+R_Squared
+
+
+Adjusted <- 1 - (1 - R_Squared) * (14006) / (14006 - 5 - 1)
+Adjusted
+```
+
+
+```{r}
+expectedSqrtTotalVolumeSold2 <- 129.014 - .255182 * NewFullData25$CT_Percent_High_School_Graduates - .00592394 * NewFullData25$CT_Rural_Population - .143218 * NewFullData25$CT_Sex_Ratio + 1.5598 * NewFullData25$Competition_Within_1km + .128136 * NewFullData25$Competition_Within_5km - .0261285 * NewFullData25$NC_Distance - .219417 * NewFullData25$NC_ACT_75 - .161529 * NewFullData25$NC_Percent_Admitted_Men + 3.52508 * NewFullData25$NC_Within_10k - .581201 * NewFullData25$NC_Within_5k + .390557 * NewFullData25$NC_Student_to_Faculty_Ratio
+
+
+observedSqrtTotalVolumeSold2 <- sqrt(NewFullData25$Total_Volume_Sold)
+
+
+meanObserved2 <- mean(observedSqrtTotalVolumeSold2)
+
+totalSumSquares2 <- sum((observedSqrtTotalVolumeSold2 - meanObserved2)^2)
+
+regressionSumSquares2 <- sum((expectedSqrtTotalVolumeSold2 - observedSqrtTotalVolumeSold2)^2)
+
+R_Squared2 <- 1 - regressionSumSquares2/totalSumSquares2
+R_Squared2
+
+
+Adjusted2 <- 1 - (1 - R_Squared2) * (14006) / (14006 - 5 - 1)
+
+Adjusted2
+
+
+```
