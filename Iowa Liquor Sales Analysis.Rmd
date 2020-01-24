@@ -104,6 +104,3 @@ R_Squared2
 Adjusted2 <- 1 - (1 - R_Squared2) * (14006) / (14006 - 5 - 1)
 
 Adjusted2
-
-
-```
