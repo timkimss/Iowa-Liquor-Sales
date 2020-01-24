@@ -5,12 +5,7 @@ date: "11/26/2019"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
-
-```{r}
 library(readr)
 library(stringr)
 library(tidyr)
@@ -24,11 +19,9 @@ library(leaps)
 library(rms)
 
 
-```
-
-```{r}
 #1. Create a dataset of all the Liquor Stores in Iowa from the initial liquor stores data.
-ILS <- read.csv("2018_Iowa_Liquor_Sales (3).csv")
+
+ILS <- read.csv("2018_Iowa_Liquor_Sales.csv")
 
 storeNumbers <- c()
 addresses <- c()
@@ -62,16 +55,10 @@ stores$storelocation <- substring(stores$storelocation, 8, nchar(as.character(st
 #sample2$`Store Location` <- parse_number(sample2$`Store Location`)
 
 IowaStores <- separate(data = stores, col = storelocation, into = c("Longitude", "Latitude"), sep = " ")
-```
 
-
-```{r}
 #Read in the requisite address data. This data required the manual aquisition of coordinate data
 IowaStoresADD = filter(IowaStores, is.na(Latitude) == TRUE)
 IowaStoresLL = filter(IowaStores, is.na(Longitude) == FALSE)
-```
-
-```{r}
 
 
 #Replace the file destination below to your own file destination. This calculates the FIPS of those stores without coordinates given
@@ -91,9 +78,6 @@ for (i in 1:nrow(IowaStoresADD2)){
   IowaStoresADD2$FIPS[i] = datajson$Block$FIPS
 }
 
-```
-
-```{r}
 
 
 #Replace the file destination below to your own file destination. This calculates the FIPS for those stores with coordinates given
@@ -128,9 +112,9 @@ GEOID = substr(IowaStores$FIPS, 1, 11)
 
 #Create final dataset for Iowa Liquor Stores
 IowaStores = mutate(IowaStores, GEOID)
-```
 
-```{r}
+
+
 #3. Now, organize the census tract data
 
 #Import requisite Iowa Census Tract data, and remove the first row (which is index data)
@@ -198,12 +182,12 @@ Percent_College_Graduates = Education$HC02_EST_VC14
 
 IowaCensusTracts = data.frame(Census_Tract, Census_Tract_GEOID, Total_Population, Urban_Population, Rural_Population, Per_Capita_Income, LFPR, Unemployment_Rate, Sex_Ratio, Median_Age, Impoverished_Population, Percent_High_School_Graduates, Percent_College_Graduates)
 
-```
 
-```{r}
+
+
 #4. Append Census Tract Information to each store using the GEOID of each Store
 
-# replace the the locations of the datasets below
+#replace the the locations of the datasets below
 
 IowaStores <- read_csv("IowaStores.csv")
 
@@ -250,9 +234,8 @@ for (i in 1:nrow(IowaStores2)){
   }
 }
 
-```
 
-```{r}
+
 #Determine the amount of competition each store has.
 stores = IowaStores2
 
@@ -283,10 +266,9 @@ for(i in 1:nrow(stores)) {
 } 
 
 stores2 <- cbind(stores, competition1km, competition5km)
-```
 
-We need to attach all the requisite college data here.
-```{r}
+
+
 #5. Now determine the nearest college, and amend that information onto the stores data.
 
 R <- 6371
@@ -301,10 +283,10 @@ B <- rep(NA, nrow(stores))
 
 distance2 <- rep(NA, nrow(stores))
 
-# Average net price-students awarded grant or scholarship aid
+#Average net price-students awarded grant or scholarship aid
 C <- rep(NA, nrow(stores))
 
-# Average amount of federal  state  local or institutional grant aid awarded
+#Average amount of federal  state  local or institutional grant aid awarded
 D <- rep(NA, nrow(stores))
 
 E <- rep(NA, nrow(stores))
@@ -438,27 +420,28 @@ for(i in 1:nrow(stores)) {
   stores3 <- cbind(stores2, distance2, B, C, D, E, F, G, H, J, O, P, Q, R1, S, T, U, V, W, X, Y, Z, AA, AB, AC, AD, AE, AF, AG, AH, AI, AJ)
 
 }
-```
 
-```{r}
-Iowa_Liquor_Sales_2018 = read.csv("2018_Iowa_Liquor_Sales (3).csv")
+Iowa_Liquor_Sales_2018 = read.csv("2018_Iowa_Liquor_Sales.csv")
 
 attach(Iowa_Liquor_Sales_2018)
 
 Iowa_Liquor_Sales_2018.2 = summarise(group_by(Iowa_Liquor_Sales_2018, Date, Store.Number, Store.Location, County), sum(as.integer(Sale..Dollars.)), sum(as.integer(Volume.Sold..Liters.)))
 
 names(Iowa_Liquor_Sales_2018.2) = c('Date', 'Store_Number', 'Store_Location', 'County', 'Total_Sales', 'Total_Volume_Sold')
-```
+
+
+
+
 #6. Compile Initial Weekly Sales Data
-```{r,message=FALSE}
+
+
 #replace location with location in your home directory.
 
 Weekly_Iowa_Liquor_Sales_2018 <- read.csv("~/Desktop/Weekly_Iowa_Liquor_Sales_2018.csv")
 
 Iowa_Stores_3 <- read.csv("~/Desktop/Iowa_Stores_3.csv")
-```
 
-```{r,message=FALSE}
+
 totrow = nrow(Weekly_Iowa_Liquor_Sales_2018)
 
 temp = rep(0, totrow)
@@ -569,11 +552,8 @@ for (i in 1:nrow(Final)){
 
 sales <- read_csv("Iowa_Liquor_Sales_Draft2.csv")
 
-```
-# 
 
-# Seeing if a date is close to what we identify as a drinking holiday (the holiday itself and the week leading up to that holiday)
-```{r}
+#Seeing if a date is close to what we identify as a drinking holiday (the holiday itself and the week leading up to that holiday)
 
 holidays <- c("1/1/2018", "1/28/2018", "1/29/2018", "1/30/2018", "1/31/2018", "2/1/2018", "2/2/2018", "2/3/2018", "2/4/2018", "2/6/2018", "2/7/2018", "2/8/2018", "2/9/2018",  "2/10/2018", "2/11/2018", "2/12/2018", "2/13/2018", "3/10/2018", "3/11/2018", "3/12/2018", "3/13/2018", "3/14/2018", "3/15/2018", "3/16/2018", "3/17/2018", "4/28/2018", "4/29/2018", "4/30/2018", "5/1/2018", "5/2/2018", "5/3/2018", "5/4/2018", "5/5/2018", "5/21/2018", "5/22/2018", "5/23/2018", "5/24/2018", "5/25/2018", "5/26/2018", "5/27/2018", "5/28/2018", "5/29/2018", "5/30/2018", "5/31/2018", "6/1/2018", "6/2/2018", "6/3/2018", "6/4/2018", "6/5/2018", "6/6/2018", "6/7/2018", "6/8/2018","6/27/2018", "6/28/2018", "6/29/2018", "6/30/2018", "7/1/2018", "7/2/2018", "7/3/2018", "7/4/2018", "8/27/2018", "8/28/2018", "8/29/2018", "8/30/2018", "8/31/2018", "9/1/2018", "9/2/2018", "9/3/2018","10/16/2018", "10/17/2018", "10/18/2018", "10/19/2018", "10/20/2018", "10/21/2018", "10/22/2018", "10/23/2018", "10/24/2018", "10/25/2018", "10/26/2018", "10/27/2018", "10/28/2018", "10/29/2018", "10/30/2018", "10/31/2018", "11/4/2018", "11/5/2018", "11/6/2018", "11/7/2018", "11/8/2018", "11/9/2018", "11/10/2018", "11/11/2018", "11/15/2018", "11/16/2018", "11/17/2018", "11/18/2018", "11/19/2018", "11/20/2018", "11/21/2018", "11/22/2018", "12/17/2018", "12/18/2018", "12/19/2018", "12/20/2018", "12/21/2018", "12/22/2018", "12/23/2018", "12/24/2018", "12/25/2018", "12/26/2018", "12/27/2018", "12/28/2018", "12/29/2018", "12/30/2018", "12/31/2018")
 
@@ -596,9 +576,8 @@ for (i in 1:nrow(sales)){
 }
 
 sales2 <- cbind(sales, drinking_holidays)
-```
 
-```{r}
+
 #7. Amend more college data to the weekly liquor sales data, rearrange, and finish.
 
 IowaStores4 <- Iowa_Stores_3
@@ -672,26 +651,16 @@ sales3 <- cbind(sales2, CC, DD, EE, FF, GG, HH, II, JJ, KK, LL, MM, NN, lessThan
 
 
 
-```
 
-
-```{r}
 
 sales3$Store_Location <- substring(sales3$Store_Location, 8, nchar(sales3$Store_Location) - 1)
 sales4 <- separate(data = sales3, col = Store_Location, into = c("Longitude", "Latitude"), sep = " ")
 
-```
 
-
-```{r}
 #8 Make Sex Ratio a decimal (originally a male to female percentage ratio)
 
 sales4$CT_Sex_Ratio <-  sales4$CT_Sex_Ratio/100
-```
 
-
-
-```{r}
 #9 Delete rows of sales from stores that don't have the data of its location coordinates or addresses.
 
 FullData <- sales4
@@ -711,12 +680,8 @@ for (i in 1:nrow(FullData)) {
 }
 
 NewFullData <- FullData
-```
 
-
-```{r}
-
-# 10 Separates the data into two portions randomly, one containing 75% of the full data, the other containing the remaining 25%.
+#10 Separates the data into two portions randomly, one containing 75% of the full data, the other containing the remaining 25%.
 
 twenty_five_percent_sample <- NewFullData %>% sample_frac(.25, replace = FALSE)
 
@@ -726,15 +691,8 @@ seventy_five_percent_sample <- x[! duplicated(x, fromLast = TRUE) & seq(nrow(x))
 NewFullData[ sample, round(0.25*length(NewFullData)) ]
 
 
-```
-
-```{r}
 NewFullData25 <- twenty_five_percent_sample
 NewFullData75 <- seventy_five_percent_sample
-```
 
-
-```{r}
 write.csv(NewFullData25, "NewFullData25.csv")
 write.csv(NewFullData75, "NewFullData75.csv")
-```
