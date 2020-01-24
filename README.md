@@ -5,7 +5,9 @@ Final Project for Statistical Modeling
 Co-authors: Jun Seok Choi and Adam Solar
 
 Census Tract Data was taken from: http://census.ire.org/data/bulkdata.html
+
 Iowa Liquor Sales Data was from: https://data.iowa.gov/Sales-Distribution/Iowa-Liquor-Sales/m3tr-qhgy/data
+
 We used Census Tract Data from 2010 and Liquor Sales Data from 2018.
 
 In the last decade, college students have been drinking increasingly more hard liquor and consequently have been further at risk of the 
